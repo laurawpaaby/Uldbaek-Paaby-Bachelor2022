@@ -1,0 +1,200 @@
+---
+title: "ANALYSIS"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+install.packages("LMest")
+library(LMest)
+library(tidyverse)
+```
+
+Loading the data
+````{r}
+#qual_data <- read_csv("qual_socioeco_df.csv")
+qual_data <- read_csv("/work/Bachelor/Qualitative/qual_socioeco_df.csv")
+
+#prepare data
+dt <- lmestData(qual_data, id = "ID", time = "time")
+````
+
+
+# Baseline model
+Used to figure out the best number of k:
+```{r}
+m_1 <- lmestCont(responsesFormula = resp_syn + resp_morph ~ NULL,
+                  index = c("ID", "time"), 
+                  k = 1:6, 
+                  data = dt$data, 
+                  modBasic = 0, 
+                  output = TRUE, 
+                  tol = 10^-5, 
+                  out_se = TRUE, seed = 100   
+                )
+
+m_1$k
+
+plot(m_1, what = "modSel")
+```
+
+
+**Initial probabilities for baseline model**
+```{r}
+m_1$piv
+```
+
+**Transition probabilities for baseline model**
+Time heterogeneous probabilities are here found: 
+```{r}
+m_1$Pi
+```
+
+**Marginal distribution for baseline model**
+```{r}
+# Determine the marginal distribution
+TT<-m_1$TT
+Pmarg <- as.matrix(m_1$piv)
+for(t in 2:TT) Pmarg= cbind(Pmarg,t(m_1$Pi[,,t])%*%Pmarg[,t-1])
+Pmarg
+```
+#### **Conditional Response Parameter**
+Tells the mean response in each state, used for labeling the states.
+```{r}
+m_1$Mu
+round(m_1$seMu, 3)
+```
+
+
+
+## WITH COVARIATES => BEST PERFORMING MODEL 
+with a set number of k
+```{r}
+m_10.1 <- lmestCont(responsesFormula = resp_syn + resp_morph ~ NULL, 
+                  latentFormula = ~ TimerIDagtilbud + CivilStatus | TimerIDagtilbud,
+                  index = c("ID", "time"), 
+                  k = 2, 
+                  data = dt$data, 
+                  modBasic = 0, 
+                  output = TRUE, 
+                  tol = 10^-5, 
+                  out_se = TRUE, seed = 1   
+                )
+```
+
+
+#### **Covariates effect on initial prob**
+The argument *Be*, returned by the function, contains the estimated regression parameters affecting the distribution of the **initial probabilities**
+```{r}
+### these are in logit and should be made into log odds 
+m_10.1$Be
+inv.logit(m_10.1$Be)
+```
+
+#### **SE and significance for initial probabilities**
+```{r}
+be_odds <- inv.logit(m_10.1$Be)
+be_se_odds <- inv.logit(m_10.1$seBe)
+p_be <- 2 * pnorm(q=m_10.1$Be/m_10.1$seBe, lower.tail = FALSE)
+
+
+TabBe <-cbind(be_odds, be_se_odds, m_10.1$Be/m_10.1$seBe, p_be)
+colnames(TabBe) <- c("estBe",  "s.e.Be","z-score", "p-value") 
+round(TabBe, 3) 
+```
+
+#### **Covariates effect on transition prob**
+Output *Ga* contains the estimated parameters affecting the distribution of the **transition probabilities**. They measure the influence of each covariate on the transition between states.
+```{r}
+m_10.1$Ga
+inv.logit(m_10.1$Ga)
+```
+
+
+#### **SE and significance for transition probabilities**
+```{r}
+ga_odds <- inv.logit(m_10.1$Ga)
+ga_se_odds <- inv.logit(m_10.1$seGa)
+ga_z_score <- m_10.1$Ga/m_10.1$seGa
+p <- 2*pnorm(q=m_10.1$Ga/m_10.1$seGa, lower.tail = FALSE)
+
+
+TabGa1 <- cbind(ga_odds, ga_se_odds, ga_z_score, p) 
+colnames(TabGa1) <- c("estGa(1-2)","estGa(2-1)", "s.e.Ga(1-2)","s.e.Ga(2-1)", "z-score(1-2)","z-score(2-1)", "p-value(1-2)", "p-value(2-1)")
+
+round(TabGa1,3) 
+```
+
+#### **Marginal Distribution** 
+```{r}
+## Determine the marginal distribution
+n <- m_10.1$n; n
+TT <- m_10.1$TT; TT
+k <- m_10.1$k; k
+
+PMarg1 <- array(0,c(n,k,TT)); dim(PMarg1)
+PMarg1[,,1] <- as.matrix(m_10.1$Piv)
+for(i in 1:n) for(t in 2:TT) PMarg1[i,,t]= t(m_10.1$PI[,,i,t])%*%PMarg1[i,,t-1]
+Pmarg1 <-apply(PMarg1,c(2,3),mean)
+Pmarg1
+
+
+````
+
+
+##### Covariate model
+
+```{r}
+dt <- lmestData(qual_data, id = "ID", time = "time")
+
+qual_all_cov_socio <- lmestCont(responsesFormula = resp_syn + resp_morph ~ NULL, 
+                  latentFormula = ~ gender + Beskaeftigelse + TimerIDagtilbud+ Uddannelse + IUddannelse + Arbejdstimer+ Modersmaal + Pasningsform , 
+                  index = c("ID", "time"), 
+                  k = 2, 
+                  data = dt$data, 
+                  modBasic = 0, 
+                  output = TRUE, 
+                  tol = 10^-5, 
+                  out_se = TRUE,
+                  seed = 123
+                )
+```
+
+#### **Covariates effect on initial prob**
+The argument *Be*, returned by the function, contains the estimated regression parameters affecting the distribution of the **initial probabilities**
+```{r}
+### these are in logit and should be made into log odds 
+qual_all_cov_socio$Be
+
+```
+
+#### **SE and significance for initial probabilities**
+```{r}
+be_odds <- qual_all_cov_socio$Be
+be_se_odds <- qual_all_cov_socio$seBe
+p_be <- 2*pnorm(q=qual_all_cov_socio$Be/qual_all_cov_socio$seBe, lower.tail = FALSE)
+
+TabBe <-cbind(be_odds, be_se_odds, qual_all_cov_socio$Be/qual_all_cov_socio$seBe, p_be)
+colnames(TabBe) <- c("estBe",  "s.e.Be","t-test", "p-value") 
+round(TabBe,3) 
+```
+
+
+#### **Covariates effect on transition probabilities**
+model with ALL covariates
+```{r}
+ga_odds <- qual_all_cov_socio$Ga
+ga_se_odds <- qual_all_cov_socio$seGa
+p <- 2*pnorm(q=qual_all_cov_socio$Ga/qual_all_cov_socio$seGa, lower.tail = FALSE)
+
+TabGa1 <- cbind(ga_odds, ga_se_odds, qual_all_cov_socio$Ga/qual_all_cov_socio$seGa, p) 
+colnames(TabGa1) <- c("estGa(1-2)","estGa(2-1)", "s.e.Ga(1)","s.e.Ga(2)", "z-score(1)","z-score(2)", "p-value(1)", "p-value(2)")
+
+round(TabGa1,3) 
+
+```
+
+
+
+
+

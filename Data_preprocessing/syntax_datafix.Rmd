@@ -1,0 +1,90 @@
+---
+title: "fix syn data"
+output: html_document
+---
+
+#### LOADING IN DATA AND PACKAGES 
+```{r, include=FALSE}
+library("tidyverse")
+library("data.table")
+library("LMest")
+```
+
+The CDI data provided:
+```{r}
+syn_df <- read_csv("syn.csv") 
+head(syn_df)
+
+#checking N of kids
+length(unique(syn_df$AnonID))
+```
+
+
+#### PUTTING IN NA'S FOR ALL NON-RESPONSES SO THAT ALL CHILDREN HAVE DATA TO ALL TIMES 
+```{r}
+age <- rep(seq(12, 36, by = 3), each = length(unique(syn_df$Item)), times = length(unique(syn_df$AnonID)))
+ID <- rep(unique(syn_df$AnonID), each = length(unique(syn_df$Item))*length(unique(age)))
+item <- rep(unique(syn_df$Item), times = length(unique(syn_df$AnonID))*length(unique(age)))
+
+d <- data.frame(AnonID = ID, Child_age = age, Item = item)
+
+#### combining this with the df:
+syn_df_full <- left_join(d, syn_df) %>% 
+  distinct(AnonID, Child_age, Item, .keep_all = TRUE)
+
+#checking N of kids
+length(unique(syn_df_full$AnonID))
+```
+
+#### MAKING A CONTINUOUS DATAFRAME
+
+````{r, results=hide}
+## making the response a mean == continuous
+df_syn_mod <- syn_df_full %>% 
+  group_by(AnonID, Child_age, Child_gender) %>% 
+  summarize("mean_resp"=mean(as.numeric(RESP_DUMMY)))
+
+#### removing distinct variables: 
+df_syn_mod <- distinct(df_syn_mod, Child_age, .keep_all = TRUE)
+
+### quick fix
+df_syn_mod <- df_syn_mod %>% 
+  rename(y = mean_resp) %>% 
+  mutate("gender" = ifelse(Child_gender == "dreng", 1, 2))
+
+#### fixing the time column:
+df_syn_mod$time <-  with(df_syn_mod, ifelse(Child_age == 12, 0 ,  ifelse(Child_age == 15, 1, ifelse(Child_age ==18 , 2, ifelse(Child_age == 21, 3, ifelse(Child_age == 24, 4, ifelse(Child_age == 27, 5, ifelse(Child_age == 30, 6, ifelse(Child_age == 33, 7, ifelse(Child_age == 36, 8, NA))))))))))
+
+#checking N of kids
+length(unique(df_syn_mod$AnonID))
+
+```
+
+#### remove all children who appears less than 3 times (as measured by TimeGroups)
+```{r}
+syn3 <- df_syn_mod %>% 
+  group_by(AnonID) %>% 
+  filter(length(y[complete.cases(y) == TRUE]) >= 2)
+
+### fill in gender:
+syn3 <- syn3 %>%
+  group_by(AnonID) %>%
+  fill(gender, .direction = "downup") %>%
+  ungroup()
+
+# amount of children left
+length(unique(syn3$AnonID))
+```
+
+#### making the ID starting at 1:
+```{r}
+### making the ID from 1 .. 
+syn3$ID <- rleid(syn3$AnonID)
+
+inf_data <- syn3 %>% 
+  select(y, time, ID, gender)
+
+#write csv
+write_csv(syn3, "/work/BA2022/syn_continuous_data.csv")
+```
+

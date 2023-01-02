@@ -1,0 +1,111 @@
+---
+title: "MORPH_data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### LOADING IN DATA AND PACKAGES 
+```{r, include=FALSE}
+library("tidyverse")
+library("data.table")
+library("LMest")
+```
+
+Loading data! 
+```{r}
+morph_df <- read_csv("/work/BA2022/morph.csv") 
+
+length(unique(morph_df$AnonID))
+```
+
+#### Left Joining and putting in NA's for all non-responses
+````{r}
+age <- rep(seq(12, 36, by = 3), each = length(unique(morph_df$Item)), times = length(unique(morph_df$AnonID))) 
+
+ID <- rep(unique(morph_df$AnonID), each = length(unique(morph_df$Item))*length(unique(age)))
+
+item <- rep(unique(morph_df$Item), times = length(unique(morph_df$AnonID))*length(unique(age)))
+
+d <- data.frame(AnonID = ID, Child_age = age, Item = item)
+
+#Then left_join d with the actual data set by AnonId, Child_age and Item. Haven’t
+#tested it, but it should work.
+morph_df_full <- left_join(d, morph_df, by = c("AnonID", "Child_age", "Item"))
+
+
+##LOOKS as it should
+morph_df_full %>% 
+  group_by(Child_age) %>% 
+  summarise("OBSERVATIONS IN EACH GROUP" = n(), 
+            "NUMBER OF CHILDREN RESPONDING" = length(unique(AnonID)))
+
+
+#amount of children
+length(unique(morph_df_full$AnonID))
+````
+
+
+
+#### MAKING A CONTINUOUS DATAFRAME
+
+````{r}
+## making the response a mean == continuous
+df_cont_morph <- morph_df_full %>% 
+  group_by(AnonID, Child_age, Child_gender) %>% 
+  summarize("mean_resp"=mean(as.numeric(RESP_DUMMY)))
+
+#Avoinding annoying Duplicated  NA's
+df_cont_morph <- distinct(df_cont_morph, Child_age, .keep_all = TRUE)
+
+df_cont_morph %>% 
+  group_by(Child_age) %>% 
+  summarize("number of children" = length(unique(ID))) #looks good
+
+#amount of children
+length(unique(df_cont_morph$AnonID))
+```
+
+#### Remove all children that appears in less than 3 TimeGroups
+````{r}
+df_cont_morph3 <- df_cont_morph %>% 
+  group_by(AnonID) %>% 
+  filter(length(mean_resp[complete.cases(mean_resp) == TRUE]) >= 2)
+
+##How many kids do we have in total
+length(unique(df_cont_morph3$AnonID))
+````
+
+##### Make gender 1 and 0 & fixing time to be from 1-9
+````{r}
+### we just quicly make a 
+df_cont_morph3 <- df_cont_morph3 %>%
+  mutate("gender" = ifelse(Child_gender == "dreng", 1, 2))
+
+#Fill in gender, so we have no NA's 
+df_cont_morph3 <- df_cont_morph3 %>%
+  group_by(AnonID) %>%
+  fill(gender, .direction = "downup") %>% 
+  ungroup()
+
+#Making a time variable from 0-8
+df_cont_morph3$time <-  with(df_cont_morph3, ifelse(Child_age == 12, 0 ,  ifelse(Child_age == 15, 1, ifelse(Child_age ==18 , 2, ifelse(Child_age == 21, 3, ifelse(Child_age ==24, 4, ifelse(Child_age == 27, 5, ifelse(Child_age == 30, 6, ifelse(Child_age == 33, 7, ifelse(Child_age == 36, 8, NA))))))))))
+
+#amount of children
+length(unique(df_cont_morph3$AnonID))
+```
+
+#### Indexing ID
+We Index ID for the sake of the model
+````{r}
+### making the ID from 1 .. 
+df_cont_morph3$ID <- rleid(df_cont_morph3$AnonID)
+
+#write csv
+write_csv(df_cont_morph3, "/work/BA2022/morph_continuous_data.csv")
+````
+
+
+

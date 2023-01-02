@@ -1,0 +1,86 @@
+---
+title: "ord_datafix"
+output: html_document
+---
+
+#### LOADING IN DATA AND PACKAGES 
+```{r, include=FALSE}
+library("tidyverse")
+library("data.table")
+library("LMest")
+```
+
+The CDI data provided:
+```{r}
+ordfor_df <- read_csv("/work/BA2022/ord.csv") 
+head(ordfor_df)
+length(unique(ordfor_df$AnonID))
+```
+
+
+#### PUTTING IN NA'S FOR ALL NON-RESPONSES SO THAT ALL CHILDREN HAVE DATA TO ALL TIMES 
+```{r}
+age <- rep(seq(12, 36, by = 3), each = length(unique(ordfor_df$Item)), times = length(unique(ordfor_df$AnonID)))
+ID <- rep(unique(ordfor_df$AnonID), each = length(unique(ordfor_df$Item))*length(unique(age)))
+item <- rep(unique(ordfor_df$Item), times = length(unique(ordfor_df$AnonID))*length(unique(age)))
+
+d <- data.frame(AnonID = ID, Child_age = age, Item = item)
+
+#### combining this with the df:
+ord_df_full <- left_join(d, ordfor_df) %>% 
+  distinct(AnonID, Child_age, Item, .keep_all = TRUE)
+
+length(unique(ord_df_full$AnonID))
+```
+
+##### CREATING A CONTINUOUS DATAFRAME
+````{r}
+## making the response a mean == continuous
+df_ord_mod <- ord_df_full %>% 
+  group_by(AnonID, Child_age, Child_gender) %>% 
+  summarize("mean_resp"=mean(as.numeric(RESP_DUMMY)))
+
+#### removing distinct variables: 
+df_ord_mod <- distinct(df_ord_mod, Child_age, .keep_all = TRUE)
+
+### quick fix
+df_ord_mod <- df_ord_mod %>% 
+  rename(y = mean_resp) %>% 
+  mutate("gender" = ifelse(Child_gender == "dreng", 1, 2))
+
+#### fixing the time column:
+df_ord_mod$time <-  with(df_ord_mod, ifelse(Child_age == 12, 0 ,  ifelse(Child_age == 15, 1, ifelse(Child_age ==18 , 2, ifelse(Child_age == 21, 3, ifelse(Child_age == 24, 4, ifelse(Child_age == 27, 5, ifelse(Child_age == 30, 6, ifelse(Child_age == 33, 7, ifelse(Child_age == 36, 8, NA))))))))))
+
+
+length(unique(df_ord_mod$AnonID))
+```
+
+
+#### remove all children who appears less than 3 times (as measured by TimeGroups)
+```{r}
+ord5 <- df_ord_mod %>% 
+  group_by(AnonID) %>% 
+  filter(length(y[complete.cases(y) == TRUE]) >= 3)
+
+### fill in gender:
+ord5 <- ord5 %>%
+  group_by(AnonID) %>%
+  fill(gender, .direction = "downup") %>%
+  ungroup()
+
+length(unique(ord5$AnonID))
+
+```
+
+#### making the ID starting at 1:
+```{r}
+### making the ID from 1 .. 
+ord5$ID <- rleid(ord5$AnonID)
+
+ord5_simple <- ord5 %>% 
+  select(y, time, ID, gender)
+
+#write csv
+write_csv(ord5, "/work/BA2022/ord_continuous_data.csv")
+```
+

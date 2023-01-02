@@ -1,0 +1,343 @@
+---
+title: "Q's Data Imputation"
+output: html_document
+date: '2022-11-25'
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("pacman")
+pacman::p_load(tidyverse, dplyr)
+```
+
+```{r setup, include=FALSE}
+#Qs <- read_csv("clean_Q.csv")
+```
+
+Okay so the struggle here is that we have a billion NA's this can be fixed by to methods (that both should be more sophisticated than just taking the mean):
+
+
+**IMPUTATION**
+HERE USING THE *MICE* PACKAGE 
+```{r}
+library(mice)
+library(VIM)
+
+### trying to visualise our NA's 
+mice_plot <- aggr(Qs, col=c('navyblue','yellow'),
+  numbers=TRUE, sortVars=TRUE,
+  labels=names(Qs), cex.axis=.7,
+  gap=3, ylab=c("Missing data","Pattern"))
+
+```
+this nicely illustrates how many we miss ... 
+
+```{r}
+imputed_Data <- mice(Qs, m=5, maxit = 50, method = 'pmm', seed = 500)
+summary(imputed_Data)
+
+```
+
+``` {r}
+#check imputed values
+imputed_Data$imp$RimRemserUgen
+
+```
+
+```{r}
+#get complete data ( 2nd out of 5)
+completeData <- complete(imputed_Data,2)
+```
+
+
+## COMPARE DENSITY
+
+
+### civilstatus
+Cohabiting  == 1
+Non-Cohabiting parents == 0
+NA = NA
+
+*Looks fine*
+```{r}
+# imputed data
+hist(completeData$CivilStatus, main = "imputed data")
+
+# non-imputed data
+hist(Qs$CivilStatus, main = "NON-imputed data")
+
+```
+
+
+### uddannelse
+Lang videregående uddannelse == 7
+Mellemlang videregående uddannelse == 6
+Kort videregående uddannelse ==5
+Erhvervsuddannelsefaglært == 4
+Ungdomsuddannelse fx HF == 3
+10. Klasse == 2
+7-9 Klasse == 1
+NA = NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$Uddannelse, main = "imputed data")
+
+# non-imputed data
+hist(Qs$Uddannelse, main = "NON-imputed data")
+```
+
+### I Uddannelse
+. == 0
+Ja == 1
+Nej == 0
+NA = NA
+
+*looks finde
+```{r}
+# imputed data
+hist(completeData$IUddannelse, main = "imputed data")
+
+# non-imputed data
+hist(Qs$IUddannelse, main = "NON-imputed data")
+```
+
+
+### Beskæftigelse 
+I job = 1
+Ikke i job = 0
+Studerende = 0 
+NA = NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$Beskaeftigelse, main = "imputed data")
+
+# non-imputed data
+hist(Qs$Beskaeftigelse, main = "NON-imputed data")
+```
+
+
+### Arbejdstimer
+Numeric values of working hours == numeric values
+NA = NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$Arbejdstimer, main = "imputed data")
+
+# non-imputed data
+hist(Qs$Arbejdstimer, main = "NON-imputed data")
+```
+
+
+### Indvandrestatus
+NOTE: this variable is generated, not based on a reponse from parents
+Dansk == 0
+Udenlandsk == 1
+NA = NA 
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$Indvandrestatus, main = "imputed data")
+
+# non-imputed data
+hist(Qs$Indvandrestatus, main = "NON-imputed data")
+```
+
+### RimRemserUgen
+0-1 gange = 1
+2-3 gange = 2
+4-5 gange = 3
+mere end 5 gange = 4
+NA = NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$RimRemserUgen, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$RimRemserUgen, main = "NON-imputed data")
+
+```
+
+### SangUgen 
+0-1 gang = 1
+2-3 gange = 2
+4-5 gange = 3
+mere end 5 gange = 4
+NA = NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$SangUgen, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$SangUgen, main = "NON-imputed data")
+
+```
+
+
+### AntalBoerneboeger
+Numeric values of AntalBoerneboeger == numeric values
+NA = NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$AntalBoerneboeger, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$AntalBoerneboeger, main = "NON-imputed data")
+
+```
+
+
+### AntalVoksneboeger
+0-20 == 1
+20-50 == 2
+50-100 == 3
+100-200 == 4
+Mere end 200 == 5
+NA=NA
+
+*looks fine* 
+```{r}
+# imputed data
+hist(completeData$AntalVoksenboeger, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$AntalVoksenboeger, main = "NON-imputed data")
+
+```
+
+
+### Modersmaal 
+Dansk = 1
+Andet modersmaal end dansk = 2
+Tosproget = 3
+NA=NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$Modersmaal, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$Modersmaal, main = "NON-imputed data")
+
+```
+
+
+### Pasningsform 
+Dagpleje/vuggestue == 1
+Integreret institution == 2
+Hjemme == 3
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$Pasningsform, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$Pasningsform, main = "NON-imputed data")
+
+```
+
+### TimerIDagTilbud  
+Faerre end 25 timer == 1
+25-30 timer == 2
+30-35 timer == 3
+35-40 timer == 4
+Mere end 40 timer == 5
+NA == NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$TimerIDagtilbud, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$TimerIDagtilbud, main = "NON-imputed data")
+
+```
+
+
+### BekymningOmBarnetsSprog 
+Ja == 1
+Nej == 0
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$BekymringOmBarnetsSprog, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$BekymringOmBarnetsSprog, main = "NON-imputed data")
+
+```
+
+
+### BegyndtAtPludre
+4-6 maaneder == 1
+6-8 maaneder == 2
+8-10 maaneder == 3
+10-12 maaneder == 4
+Endnu ikke == 5
+Ved ikke == 6
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$BegyndtAtPludre, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$BegyndtAtPludre, main = "NON-imputed data")
+
+```
+
+
+### InitiativTilLaesning
+Ja == 1
+Nej == 0
+NA =NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$InitiativTilLaesning, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$InitiativTilLaesning, main = "NON-imputed data")
+```
+
+
+### HoejtlaesningUgen 
+0-1 gang = 1
+2-3 gange = 2
+4-5 gange = 3
+mere end 5 gange = 4
+NA=NA
+
+*looks fine*
+```{r}
+# imputed data
+hist(completeData$HoejtlaesningUgen, breaks= 10, main = "imputed data")
+
+# non-imputed data
+hist(Qs$HoejtlaesningUgen, main = "NON-imputed data")
+
+```
+
+
+### Write clean Q into csv 
+```{r}
+#write_csv(completeData, "/work/Bachelor/Q's/clean_Q_imputed.csv")
+``` 
+
+

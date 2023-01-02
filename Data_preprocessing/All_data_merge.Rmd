@@ -1,0 +1,112 @@
+---
+title: "Merging all data"
+output: html_document
+---
+
+#### LOADING IN DATA AND PACKAGES 
+```{r, include=FALSE}
+library("tidyverse")
+library("data.table")
+#install.packages("LMest")
+#library("LMest")
+```
+
+#loading model data for all 3 different ICO
+````{r}
+morph_df <- read_csv("/work/Bachelor/morph_continuous_data .csv")
+morph_df <- morph_df %>% 
+  rename(resp_morph = mean_resp)
+
+syn_df <- read_csv("/work/Bachelor/syn_continuous_data.csv")
+syn_df <- syn_df %>% 
+  rename(resp_syn = y)
+
+ordforraad_df <- read_csv("/work/Bachelor/ord_continuous_data.csv")
+ordforraad_df <- ordforraad_df %>% 
+  rename(resp_ord = y)
+
+````
+
+
+````{r}
+# Checking whether all ID's are present in all 3 ICO's
+syn_id <- unique(syn_df$AnonID) 
+length(unique(syn_id)) # 276 children have at least 2 observations of syntax
+
+ord_id <- unique(ordforraad_df$AnonID)  #76 children have at least 3 observations of ord
+length(unique(ord_id))
+
+morph_id <- unique(morph_df$AnonID)
+length(unique(morph_id)) #710 children have at least 2 observations of morph
+
+
+#but how many syn_id and morph_id are present in ord_id?
+true_id1<- ord_id[ord_id %in% syn_id] # only 258 syn_id are in ord_id --> FIX
+length(unique(true_id1))
+
+true_id2<- ord_id[ord_id %in% morph_id]  # only 643 morph_id are in ord_id --> FIX
+length(unique(true_id2))
+
+true_id3<- morph_id[morph_id %in% syn_id] # all syn_id are in morph_id --> PERFECT :))
+length(unique(true_id3))
+````
+
+#### revmoving ID's that are not present in al categories
+Only 258 syn_id are in ord_id, meaning (276-258) 18 children needs to be removed
+Only 643 morph_id are in ord_id, meaning (710-643) 67 children needs to be removed
+
+````{r}
+#removing excess kids in syn_id
+syn_kids <- ord_id[ord_id %in% syn_id]
+syn_df <- syn_df[syn_df$AnonID %in% syn_kids , ]
+length(unique(syn_df$AnonID))
+
+#removing excess kids in morph_id
+morph_kids <- ord_id[ord_id %in% morph_id]
+morph_df <- morph_df[morph_df$AnonID %in% morph_kids , ]
+length(unique(morph_df$AnonID))
+````
+
+
+# Merging data
+````{r}
+#merging syntax_df with ord_df
+all_df1 <- inner_join(syn_df, ordforraad_df, by = c("AnonID", "Child_age")) 
+all_df1 <- all_df1 %>% 
+  select(ID.x, time.x, gender.x, AnonID, Child_age, Child_gender.x, resp_syn,resp_ord) %>% 
+  rename(ID = ID.x,
+         time =time.x, 
+          Child_gender = Child_gender.x,
+         gender = gender.x
+         )
+
+#then merge combined syntax/ord_df with morph_df
+all_df <- inner_join(all_df1, morph_df, by = c("AnonID", "Child_age"))
+all_df<- all_df %>% 
+  select(ID.x, time.x, gender.x, AnonID, Child_age, Child_gender.x, resp_syn,resp_ord, resp_morph) %>% 
+  rename(ID = ID.x,
+         time =time.x, 
+          Child_gender = Child_gender.x,
+         gender = gender.x
+         )
+
+length(unique(all_df$ID))
+````
+
+
+### subsetting df
+````{r}
+#### cleany cleany
+all_df <- all_df %>% 
+  select(AnonID, ID, gender, time, resp_ord, resp_syn, resp_morph)
+````
+
+````{r}
+#something is a little off with ID, so we remake it
+all_df$ID <- rleid(all_df$AnonID)
+````
+
+### Write for mergement with Q's
+```{r}
+write_csv(all_df, "/work/Bachelor/model_data.csv")
+```
